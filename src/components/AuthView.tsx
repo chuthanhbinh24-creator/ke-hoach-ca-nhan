@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../store';
-import { Activity, LogIn, UserPlus, Eye, EyeOff, KeyRound, Mail, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import { Activity, LogIn, UserPlus, Eye, EyeOff, Mail, ArrowLeft, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
@@ -19,84 +19,12 @@ export function AuthView() {
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Verification
-  const [step, setStep] = useState<1 | 2>(1); // 1: Info, 2: Verification
-  const [verificationCode, setVerificationCode] = useState('');
-  const [countdown, setCountdown] = useState(0);
-
-  useEffect(() => {
-    let timer: number;
-    if (countdown > 0) {
-      timer = window.setInterval(() => {
-        setCountdown((c) => c - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [countdown]);
-
   const resetForm = (newMode: AuthMode) => {
     setMode(newMode);
     setError('');
     setSuccessMsg('');
-    setStep(1);
-    setVerificationCode('');
     setPassword('');
     setConfirmPassword('');
-    setCountdown(0);
-  };
-
-  const requestEmailOTP = async (targetEmail: string, context: string) => {
-    setIsLoading(true);
-    setError('');
-    setSuccessMsg('');
-    
-    try {
-      const res = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail, context }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
-      }
-      
-      setSuccessMsg('Mã xác nhận đã được gửi đến email của bạn.');
-      setCountdown(60);
-      setStep(2);
-    } catch (err: any) {
-      setError(err.message || 'Có lỗi xảy ra khi gửi email!');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const verifyOTP = async (targetEmail: string, code: string) => {
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail, code }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Mã xác nhận không đúng!');
-      }
-      
-      return true;
-    } catch (err: any) {
-      setError(err.message || 'Có lỗi xảy ra khi xác thực!');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleRegisterSubmit = async () => {
@@ -109,7 +37,15 @@ export function AuthView() {
       return;
     }
 
-    await requestEmailOTP(email, 'Đăng ký tài khoản');
+    setIsLoading(true);
+    // Simulate slight delay for UX
+    await new Promise(r => setTimeout(r, 600));
+    
+    const result = register(username.trim(), email.trim(), password);
+    if (!result.success) {
+      setError(result.error!);
+    }
+    setIsLoading(false);
   };
 
   const handleForgotPasswordSubmit = async () => {
@@ -118,7 +54,18 @@ export function AuthView() {
       return;
     }
     
-    await requestEmailOTP(email, 'Khôi phục mật khẩu');
+    setIsLoading(true);
+    // Simulate slight delay for UX
+    await new Promise(r => setTimeout(r, 600));
+
+    const result = resetPassword(email.trim(), password);
+    if (!result.success) {
+      setError(result.error!);
+    } else {
+      setSuccessMsg('Cập nhật mật khẩu thành công! Vui lòng đăng nhập.');
+      setTimeout(() => resetForm('login'), 2000);
+    }
+    setIsLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,30 +80,10 @@ export function AuthView() {
       return;
     }
 
-    if (step === 1) {
-      if (mode === 'register') {
-        await handleRegisterSubmit();
-      } else if (mode === 'forgot_password') {
-        await handleForgotPasswordSubmit();
-      }
-    } else if (step === 2) {
-      const isValid = await verifyOTP(email, verificationCode);
-      if (!isValid) return;
-      
-      if (mode === 'register') {
-        const result = register(username.trim(), email.trim(), password);
-        if (!result.success) {
-          setError(result.error!);
-        }
-      } else if (mode === 'forgot_password') {
-        const result = resetPassword(email.trim(), password);
-        if (!result.success) {
-          setError(result.error!);
-        } else {
-          setSuccessMsg('Cập nhật mật khẩu thành công! Vui lòng đăng nhập.');
-          setTimeout(() => resetForm('login'), 2000);
-        }
-      }
+    if (mode === 'register') {
+      await handleRegisterSubmit();
+    } else if (mode === 'forgot_password') {
+      await handleForgotPasswordSubmit();
     }
   };
 
@@ -211,8 +138,6 @@ export function AuthView() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {step === 1 && (
-            <>
               {(mode === 'login' || mode === 'register') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -290,41 +215,6 @@ export function AuthView() {
                   </div>
                 </div>
               )}
-            </>
-          )}
-
-          {step === 2 && (
-            <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
-              <KeyRound size={32} className="mx-auto mb-3 text-primary" style={{ color: 'var(--color-primary)' }} />
-              <h3 className="font-semibold text-lg text-gray-900 dark:text-white mb-2">Nhập mã xác nhận</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Mã xác nhận gồm 6 số đã được gửi đến:<br/><span className="font-medium text-gray-700 dark:text-gray-300">{email}</span>
-              </p>
-              <input
-                type="text"
-                required
-                maxLength={6}
-                value={verificationCode}
-                onChange={(e) => { setVerificationCode(e.target.value.replace(/\D/g, '')); setError(''); }}
-                placeholder="000000"
-                className="w-full text-center text-2xl tracking-[0.5em] font-mono rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-gray-900 dark:text-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-4"
-              />
-              <button 
-                type="button"
-                disabled={countdown > 0 || isLoading}
-                onClick={() => requestEmailOTP(email, mode === 'register' ? 'Đăng ký tài khoản' : 'Khôi phục mật khẩu')}
-                className={cn(
-                  "mt-2 text-sm font-medium flex items-center justify-center mx-auto transition-colors",
-                  countdown > 0 
-                    ? "text-gray-400 cursor-not-allowed" 
-                    : "text-primary hover:underline cursor-pointer"
-                )}
-                style={countdown === 0 ? { color: 'var(--color-primary)' } : undefined}
-              >
-                {countdown > 0 ? `Gửi lại mã sau ${countdown}s` : 'Gửi lại mã'}
-              </button>
-            </div>
-          )}
 
           {error && (
             <div className="text-red-500 text-sm font-medium p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
@@ -338,7 +228,7 @@ export function AuthView() {
             </div>
           )}
 
-          {mode === 'login' && step === 1 && (
+          {mode === 'login' && (
             <div className="flex justify-end">
               <button
                 type="button"
@@ -362,15 +252,13 @@ export function AuthView() {
             ) : (
               <>
                 <span>
-                  {step === 2 
-                    ? 'Xác nhận' 
-                    : mode === 'login' 
-                      ? 'Đăng nhập' 
-                      : mode === 'register' 
-                        ? 'Đăng ký & Gửi mã' 
-                        : 'Lấy lại mật khẩu'}
+                  {mode === 'login' 
+                    ? 'Đăng nhập' 
+                    : mode === 'register' 
+                      ? 'Đăng ký' 
+                      : 'Lấy lại mật khẩu'}
                 </span>
-                {step === 1 && (mode === 'login' ? <LogIn size={20} /> : <UserPlus size={20} />)}
+                {mode === 'login' ? <LogIn size={20} /> : <UserPlus size={20} />}
               </>
             )}
           </button>
