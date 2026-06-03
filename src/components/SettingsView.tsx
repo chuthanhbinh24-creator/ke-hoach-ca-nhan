@@ -1,5 +1,6 @@
+import React, { useState } from 'react';
 import { useAppStore } from '../store';
-import { Palette, Moon, Sun } from 'lucide-react';
+import { Palette, Moon, Sun, Lock } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const COLORS = [
@@ -11,8 +12,41 @@ const COLORS = [
 ];
 
 export function SettingsView() {
-  const { state, updateUserSettings } = useAppStore();
+  const { state, updateUserSettings, changePassword } = useAppStore();
   const user = state.currentUser!;
+
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+
+    if (newPassword !== confirmPassword) {
+      setPwError('Mật khẩu xác nhận không khớp');
+      return;
+    }
+    
+    if (!oldPassword || !newPassword) {
+      setPwError('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+
+    const { success, error } = changePassword(oldPassword, newPassword);
+    if (!success) {
+      setPwError(error || 'Có lỗi xảy ra');
+    } else {
+      setPwSuccess('Cập nhật mật khẩu thành công');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPwSuccess(''), 3000);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto py-8">
@@ -85,6 +119,52 @@ export function SettingsView() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 mb-6">
+            <Lock className="text-primary" style={{ color: 'var(--color-primary)' }} />
+            <h3 className="text-xl font-semibold">Bảo mật tài khoản</h3>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-sm">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mật khẩu hiện tại</label>
+              <input 
+                type="password" 
+                value={oldPassword} 
+                onChange={e => setOldPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary focus:outline-none" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mật khẩu mới</label>
+              <input 
+                type="password" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary focus:outline-none" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Xác nhận mật khẩu mới</label>
+              <input 
+                type="password" 
+                value={confirmPassword} 
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary focus:outline-none" 
+              />
+            </div>
+            {pwError && <p className="text-red-500 text-sm">{pwError}</p>}
+            {pwSuccess && <p className="text-green-500 text-sm">{pwSuccess}</p>}
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              Đổi mật khẩu
+            </button>
+          </form>
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
