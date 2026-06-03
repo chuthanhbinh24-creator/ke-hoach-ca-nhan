@@ -10,9 +10,17 @@ export function PomodoroView() {
   const { userTasks } = useAppStore();
   const incompleteTasks = userTasks.filter((t) => !t.completed);
 
+  const [workHours, setWorkHours] = useState(0);
   const [workMinutes, setWorkMinutes] = useState(25);
+  const [workSeconds, setWorkSeconds] = useState(0);
+
+  const [breakHours, setBreakHours] = useState(0);
   const [breakMinutes, setBreakMinutes] = useState(5);
+  const [breakSeconds, setBreakSeconds] = useState(0);
   
+  const getWorkDuration = () => workHours * 3600 + workMinutes * 60 + workSeconds || 1;
+  const getBreakDuration = () => breakHours * 3600 + breakMinutes * 60 + breakSeconds || 1;
+
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<Mode>('work');
@@ -21,8 +29,8 @@ export function PomodoroView() {
 
   // Dynamic durations
   const durations = {
-    work: workMinutes * 60,
-    break: breakMinutes * 60,
+    work: getWorkDuration(),
+    break: getBreakDuration(),
   };
 
   const handleTaskSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -31,27 +39,41 @@ export function PomodoroView() {
     if (taskId) {
       const task = userTasks.find(t => t.id === taskId);
       if (task?.estimatedMinutes) {
-        setWorkMinutes(task.estimatedMinutes);
+        const h = Math.floor(task.estimatedMinutes / 60);
+        const m = task.estimatedMinutes % 60;
+        setWorkHours(h);
+        setWorkMinutes(m);
+        setWorkSeconds(0);
         if (mode === 'work' && !isActive) {
-          setTimeLeft(task.estimatedMinutes * 60);
+          setTimeLeft(h * 3600 + m * 60);
         }
       }
     }
   };
 
-  const handleCustomWorkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value) || 1;
-    setWorkMinutes(val);
+  const updateWorkTime = (h: number, m: number, s: number) => {
+    const maxNumber = (val: number, max: number) => isNaN(val) ? 0 : Math.min(Math.max(val, 0), max);
+    const validH = maxNumber(h, 23);
+    const validM = maxNumber(m, 59);
+    const validS = maxNumber(s, 59);
+    setWorkHours(validH);
+    setWorkMinutes(validM);
+    setWorkSeconds(validS);
     if (mode === 'work' && !isActive) {
-      setTimeLeft(val * 60);
+      setTimeLeft(validH * 3600 + validM * 60 + validS || 1);
     }
   };
 
-  const handleCustomBreakChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value) || 1;
-    setBreakMinutes(val);
+  const updateBreakTime = (h: number, m: number, s: number) => {
+    const maxNumber = (val: number, max: number) => isNaN(val) ? 0 : Math.min(Math.max(val, 0), max);
+    const validH = maxNumber(h, 23);
+    const validM = maxNumber(m, 59);
+    const validS = maxNumber(s, 59);
+    setBreakHours(validH);
+    setBreakMinutes(validM);
+    setBreakSeconds(validS);
     if (mode === 'break' && !isActive) {
-      setTimeLeft(val * 60);
+      setTimeLeft(validH * 3600 + validM * 60 + validS || 1);
     }
   };
 
@@ -104,9 +126,10 @@ export function PomodoroView() {
   };
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h > 0 ? h.toString().padStart(2, '0') + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const progress = ((durations[mode] - timeLeft) / durations[mode]) * 100;
@@ -140,30 +163,93 @@ export function PomodoroView() {
               ))}
             </select>
           </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cài đặt Làm việc (phút)</label>
-              <input
-                type="number"
-                min="1"
-                max="120"
-                value={workMinutes}
-                onChange={handleCustomWorkChange}
-                disabled={isActive}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none disabled:opacity-50"
-              />
+          <div className="flex flex-col gap-3">
+            <div className="bg-white dark:bg-gray-700/50 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Cài đặt Thời gian làm việc</label>
+              <div className="flex space-x-2">
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={workHours}
+                    onChange={(e) => updateWorkTime(parseInt(e.target.value), workMinutes, workSeconds)}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Giờ</span>
+                </div>
+                <span className="py-2 font-bold text-gray-400">:</span>
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={workMinutes}
+                    onChange={(e) => updateWorkTime(workHours, parseInt(e.target.value), workSeconds)}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Phút</span>
+                </div>
+                <span className="py-2 font-bold text-gray-400">:</span>
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={workSeconds}
+                    onChange={(e) => updateWorkTime(workHours, workMinutes, parseInt(e.target.value))}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Giây</span>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cài đặt Nghỉ (phút)</label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={breakMinutes}
-                onChange={handleCustomBreakChange}
-                disabled={isActive}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none disabled:opacity-50"
-              />
+            
+            <div className="bg-white dark:bg-gray-700/50 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Cài đặt Thời gian nghỉ</label>
+              <div className="flex space-x-2">
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={breakHours}
+                    onChange={(e) => updateBreakTime(parseInt(e.target.value), breakMinutes, breakSeconds)}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Giờ</span>
+                </div>
+                <span className="py-2 font-bold text-gray-400">:</span>
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={breakMinutes}
+                    onChange={(e) => updateBreakTime(breakHours, parseInt(e.target.value), breakSeconds)}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Phút</span>
+                </div>
+                <span className="py-2 font-bold text-gray-400">:</span>
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={breakSeconds}
+                    onChange={(e) => updateBreakTime(breakHours, breakMinutes, parseInt(e.target.value))}
+                    disabled={isActive}
+                    className="w-full text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-2 text-sm focus:border-primary outline-none disabled:opacity-50 font-mono"
+                  />
+                  <span className="text-[10px] text-gray-500 text-center mt-1">Giây</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -219,7 +305,7 @@ export function PomodoroView() {
               style={{ color: 'var(--color-primary)' }}
             />
           </svg>
-          <div className="text-6xl font-bold font-mono tracking-tighter">
+          <div className={cn("font-bold font-mono tracking-tighter transition-all duration-300", timeLeft >= 3600 ? "text-5xl" : "text-6xl")}>
             {formatTime(timeLeft)}
           </div>
         </div>
