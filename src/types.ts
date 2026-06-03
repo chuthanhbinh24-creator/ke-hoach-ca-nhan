@@ -4,6 +4,7 @@ export type ViewMode = 'day' | 'week';
 export interface User {
   id: string;
   username: string;
+  email?: string;
   password?: string;
   primaryColor: string; // e.g., 'blue', 'green', 'violet'
   isDarkMode: boolean;
