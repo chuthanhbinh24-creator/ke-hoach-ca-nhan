@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { Activity, LogIn, UserPlus, Eye, EyeOff, KeyRound, Mail, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Activity, LogIn, UserPlus, Eye, EyeOff, KeyRound, Mail, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
@@ -16,30 +16,90 @@ export function AuthView() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   
   // Verification
   const [step, setStep] = useState<1 | 2>(1); // 1: Info, 2: Verification
-  const [sentCode, setSentCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    let timer: number;
+    if (countdown > 0) {
+      timer = window.setInterval(() => {
+        setCountdown((c) => c - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   const resetForm = (newMode: AuthMode) => {
     setMode(newMode);
     setError('');
+    setSuccessMsg('');
     setStep(1);
-    setSentCode(null);
     setVerificationCode('');
-    // clear some fields?
     setPassword('');
     setConfirmPassword('');
+    setCountdown(0);
   };
 
-  const simulateSendEmail = (targetEmail: string, context: string) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSentCode(code);
-    alert(`[Mô phỏng Gửi Email - ${context}]\nĐã gửi đến: ${targetEmail}\nMã xác nhận của bạn là: ${code}\n(Trong thực tế mã sẽ được gửi qua Google Account/Gmail)`);
+  const requestEmailOTP = async (targetEmail: string, context: string) => {
+    setIsLoading(true);
+    setError('');
+    setSuccessMsg('');
+    
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, context }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send OTP');
+      }
+      
+      setSuccessMsg('Mã xác nhận đã được gửi đến email của bạn.');
+      setCountdown(60);
+      setStep(2);
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra khi gửi email!');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRegisterSubmit = () => {
+  const verifyOTP = async (targetEmail: string, code: string) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, code }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Mã xác nhận không đúng!');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra khi xác thực!');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterSubmit = async () => {
     if (password !== confirmPassword) {
       setError('Mật khẩu xác nhận không khớp!');
       return;
@@ -49,32 +109,23 @@ export function AuthView() {
       return;
     }
 
-    // if Google account (gmail), send code
-    if (email.toLowerCase().endsWith('@gmail.com') || email.toLowerCase().endsWith('@googlemail.com')) {
-      setError('');
-      simulateSendEmail(email, 'Đăng ký tài khoản');
-      setStep(2);
-    } else {
-      // Direct register for non-google or we can enforce email verification for all
-      setError('');
-      simulateSendEmail(email, 'Đăng ký tài khoản');
-      setStep(2);
-    }
+    await requestEmailOTP(email, 'Đăng ký tài khoản');
   };
 
-  const handleForgotPasswordSubmit = () => {
+  const handleForgotPasswordSubmit = async () => {
     if (!checkEmailExists(email)) {
       setError('Không tìm thấy tài khoản liên kết với Email này.');
       return;
     }
-    setError('');
-    simulateSendEmail(email, 'Khôi phục mật khẩu');
-    setStep(2);
+    
+    await requestEmailOTP(email, 'Khôi phục mật khẩu');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
+    setSuccessMsg('');
     
     if (mode === 'login') {
       const result = login(username.trim(), password);
@@ -84,30 +135,26 @@ export function AuthView() {
 
     if (step === 1) {
       if (mode === 'register') {
-        handleRegisterSubmit();
+        await handleRegisterSubmit();
       } else if (mode === 'forgot_password') {
-        handleForgotPasswordSubmit();
+        await handleForgotPasswordSubmit();
       }
     } else if (step === 2) {
-      if (verificationCode !== sentCode) {
-        setError('Mã xác nhận không đúng!');
-        return;
-      }
+      const isValid = await verifyOTP(email, verificationCode);
+      if (!isValid) return;
       
       if (mode === 'register') {
         const result = register(username.trim(), email.trim(), password);
         if (!result.success) {
           setError(result.error!);
-        } else {
-          // auto login is handled internally? wait, register sets currentUser
         }
       } else if (mode === 'forgot_password') {
         const result = resetPassword(email.trim(), password);
         if (!result.success) {
           setError(result.error!);
         } else {
-          alert('Cập nhật mật khẩu thành công! Vui lòng đăng nhập.');
-          resetForm('login');
+          setSuccessMsg('Cập nhật mật khẩu thành công! Vui lòng đăng nhập.');
+          setTimeout(() => resetForm('login'), 2000);
         }
       }
     }
@@ -155,6 +202,7 @@ export function AuthView() {
 
         {mode === 'forgot_password' && (
           <button 
+            type="button"
             onClick={() => resetForm('login')}
             className="flex items-center text-sm text-gray-500 hover:text-primary mb-4 transition-colors"
           >
@@ -184,7 +232,7 @@ export function AuthView() {
               {(mode === 'register' || mode === 'forgot_password') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email {mode === 'register' && '(Khuyên dùng Gmail)'}
+                    Email
                   </label>
                   <div className="relative">
                     <Mail size={18} className="absolute left-3 top-3.5 text-gray-400" />
@@ -259,17 +307,21 @@ export function AuthView() {
                 value={verificationCode}
                 onChange={(e) => { setVerificationCode(e.target.value.replace(/\D/g, '')); setError(''); }}
                 placeholder="000000"
-                className="w-full text-center text-2xl tracking-[0.5em] font-mono rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-gray-900 dark:text-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                className="w-full text-center text-2xl tracking-[0.5em] font-mono rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-gray-900 dark:text-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-4"
               />
               <button 
                 type="button"
-                onClick={() => {
-                  simulateSendEmail(email, mode === 'register' ? 'Đăng ký tài khoản' : 'Khôi phục mật khẩu')
-                }}
-                className="mt-4 text-sm font-medium text-primary hover:underline"
-                style={{ color: 'var(--color-primary)' }}
+                disabled={countdown > 0 || isLoading}
+                onClick={() => requestEmailOTP(email, mode === 'register' ? 'Đăng ký tài khoản' : 'Khôi phục mật khẩu')}
+                className={cn(
+                  "mt-2 text-sm font-medium flex items-center justify-center mx-auto transition-colors",
+                  countdown > 0 
+                    ? "text-gray-400 cursor-not-allowed" 
+                    : "text-primary hover:underline cursor-pointer"
+                )}
+                style={countdown === 0 ? { color: 'var(--color-primary)' } : undefined}
               >
-                Gửi lại mã
+                {countdown > 0 ? `Gửi lại mã sau ${countdown}s` : 'Gửi lại mã'}
               </button>
             </div>
           )}
@@ -277,6 +329,12 @@ export function AuthView() {
           {error && (
             <div className="text-red-500 text-sm font-medium p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
               {error}
+            </div>
+          )}
+          
+          {successMsg && (
+            <div className="text-green-600 dark:text-green-400 text-sm font-medium p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              {successMsg}
             </div>
           )}
 
@@ -295,19 +353,26 @@ export function AuthView() {
 
           <button
             type="submit"
-            className="flex w-full items-center justify-center space-x-2 rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:opacity-90 transition-opacity"
+            disabled={isLoading}
+            className="flex w-full items-center justify-center space-x-2 rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-70 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--color-primary, rgb(59, 130, 246))' }}
           >
-            <span>
-              {step === 2 
-                ? 'Xác nhận' 
-                : mode === 'login' 
-                  ? 'Đăng nhập' 
-                  : mode === 'register' 
-                    ? 'Đăng ký & Gửi mã' 
-                    : 'Lấy lại mật khẩu'}
-            </span>
-            {step === 1 && (mode === 'login' ? <LogIn size={20} /> : <UserPlus size={20} />)}
+            {isLoading ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <>
+                <span>
+                  {step === 2 
+                    ? 'Xác nhận' 
+                    : mode === 'login' 
+                      ? 'Đăng nhập' 
+                      : mode === 'register' 
+                        ? 'Đăng ký & Gửi mã' 
+                        : 'Lấy lại mật khẩu'}
+                </span>
+                {step === 1 && (mode === 'login' ? <LogIn size={20} /> : <UserPlus size={20} />)}
+              </>
+            )}
           </button>
         </form>
       </div>
