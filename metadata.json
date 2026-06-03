@@ -1,0 +1,6 @@
+{
+  "name": "Kế Hoạch Cá Nhân",
+  "description": "Ứng dụng quản lý công việc tối giản với Pomodoro, thống kê và phần thưởng",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
