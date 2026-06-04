@@ -27,12 +27,10 @@ export function TasksView() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [newTaskDate, setNewTaskDate] = useState(formatTZ(new Date(), 'yyyy-MM-dd'));
+  const [newTaskTime, setNewTaskTime] = useState('');
   const [newTaskRecurring, setNewTaskRecurring] = useState(false);
   const [newTaskMinutes, setNewTaskMinutes] = useState('25');
   const [isAdding, setIsAdding] = useState(false);
-
-  // Timetable toggle state
-  const [showTimetable, setShowTimetable] = useState(false);
 
   const filterTasks = (tasks: Task[]) => {
     const today = new Date();
@@ -64,6 +62,7 @@ export function TasksView() {
           title: newTaskTitle.trim(),
           priority: newTaskPriority,
           date: formatTZ(addDays(baseDate, i * 7), 'yyyy-MM-dd'),
+          time: newTaskTime || undefined,
           completed: false,
           estimatedMinutes: parseInt(newTaskMinutes) || 25,
         });
@@ -74,6 +73,7 @@ export function TasksView() {
         title: newTaskTitle.trim(),
         priority: newTaskPriority,
         date: newTaskDate,
+        time: newTaskTime || undefined,
         completed: false,
         estimatedMinutes: parseInt(newTaskMinutes) || 25,
       });
@@ -81,6 +81,7 @@ export function TasksView() {
 
     setNewTaskTitle('');
     setNewTaskRecurring(false);
+    setNewTaskTime('');
     setNewTaskMinutes('25');
     setIsAdding(false);
   };
@@ -138,66 +139,92 @@ export function TasksView() {
                   <div className="text-xs opacity-75">{formatTZ(day, 'dd/MM')}</div>
                 </div>
                 
-                <div className="p-2 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
-                  {dayTasks.length === 0 ? (
-                    <div className="text-center py-4 text-xs text-gray-400">Trống</div>
-                  ) : (
-                    dayTasks.map(task => (
-                      <div 
-                        key={task.id}
-                        className={cn(
-                          "group p-2 rounded-lg border text-sm transition-all flex flex-col",
-                          task.completed 
-                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-60" 
-                            : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:shadow-sm"
-                        )}
-                      >
-                        <div className="flex items-start gap-2 mb-1">
-                          <button
-                            onClick={() => handleToggle(task.id, task.completed)}
+                <div className="p-2 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+                  {['sáng', 'chiều', 'tối'].map(shift => {
+                    const shiftTasks = dayTasks.filter(t => {
+                      if (!t.time) return shift === 'sáng'; // Default to morning if no time
+                      const hour = parseInt(t.time.split(':')[0]);
+                      if (shift === 'sáng') return hour >= 0 && hour < 12;
+                      if (shift === 'chiều') return hour >= 12 && hour < 18;
+                      return hour >= 18;
+                    }).sort((a, b) => {
+                      if (a.time && b.time) return a.time.localeCompare(b.time);
+                      return 0;
+                    });
+
+                    if (shiftTasks.length === 0) return null;
+
+                    return (
+                      <div key={shift} className="space-y-1.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-1 flex items-center gap-1.5">
+                          <div className={cn("w-1.5 h-1.5 rounded-full", 
+                            shift === 'sáng' ? 'bg-orange-400' :
+                            shift === 'chiều' ? 'bg-blue-400' : 'bg-indigo-600'
+                          )}></div>
+                          Ca {shift}
+                        </div>
+                        {shiftTasks.map(task => (
+                          <div 
+                            key={task.id}
                             className={cn(
-                              "flex-shrink-0 w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 transition-colors",
-                              task.completed
-                                ? "bg-primary border-primary text-white"
-                                : "border-gray-300 dark:border-gray-600 hover:border-primary text-transparent"
+                              "group p-2 rounded-lg border text-sm transition-all flex flex-col",
+                              task.completed 
+                                ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-60" 
+                                : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:shadow-sm"
                             )}
-                            style={task.completed ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : {}}
                           >
-                            <Check size={10} className={task.completed ? "opacity-100" : "opacity-0"} />
-                          </button>
-                          
-                          <span className={cn(
-                            "font-medium line-clamp-2 w-full break-all leading-tight flex-1",
-                            task.completed ? "line-through text-gray-500" : ""
-                          )}>
-                            {task.title}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between ml-6 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <span className={cn(
-                              "px-1.5 py-0.5 text-[10px] font-semibold rounded-md border",
-                              PRIORITY_COLORS[task.priority]
-                            )}>
-                              {PRIORITY_LABELS[task.priority]}
-                            </span>
-                            {task.estimatedMinutes && (
-                              <span className="text-[10px] flex items-center text-gray-500 font-medium">
-                                <Clock size={10} className="mr-0.5" />
-                                {task.estimatedMinutes}p
+                            <div className="flex items-start gap-2 mb-1">
+                              <button
+                                onClick={() => handleToggle(task.id, task.completed)}
+                                className={cn(
+                                  "flex-shrink-0 w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 transition-colors",
+                                  task.completed
+                                    ? "bg-primary border-primary text-white"
+                                    : "border-gray-300 dark:border-gray-600 hover:border-primary text-transparent"
+                                )}
+                                style={task.completed ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : {}}
+                              >
+                                <Check size={10} className={task.completed ? "opacity-100" : "opacity-0"} />
+                              </button>
+                              
+                              <span className={cn(
+                                "font-medium line-clamp-2 w-full break-all leading-tight flex-1",
+                                task.completed ? "line-through text-gray-500" : ""
+                              )}>
+                                {task.time && <span className="text-primary font-bold mr-1.5 text-xs bg-primary/10 px-1 py-0.5 rounded">{task.time}</span>}
+                                {task.title}
                               </span>
-                            )}
+                            </div>
+                            
+                            <div className="flex items-center justify-between ml-6 mt-2">
+                              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                <span className={cn(
+                                  "px-1.5 py-0.5 text-[10px] font-semibold rounded-md border",
+                                  PRIORITY_COLORS[task.priority]
+                                )}>
+                                  {PRIORITY_LABELS[task.priority]}
+                                </span>
+                                {task.estimatedMinutes && (
+                                  <span className="text-[10px] flex items-center text-gray-500 font-medium">
+                                    <Clock size={10} className="mr-0.5" />
+                                    {task.estimatedMinutes}p
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => deleteTask(task.id)}
+                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => deleteTask(task.id)}
-                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                        ))}
                       </div>
-                    ))
+                    );
+                  })}
+                  {dayTasks.length === 0 && (
+                    <div className="text-center py-4 text-xs text-gray-400">Trống</div>
                   )}
                 </div>
               </div>
@@ -246,6 +273,7 @@ export function TasksView() {
                 "font-medium text-lg truncate transition-all",
                 task.completed ? "line-through text-gray-500" : ""
               )}>
+                {task.time && <span className="text-primary font-bold mr-2 text-sm bg-primary/10 px-1.5 py-0.5 rounded">{task.time}</span>}
                 {task.title}
               </span>
             </div>
@@ -308,23 +336,6 @@ export function TasksView() {
         </div>
       </div>
 
-      {viewMode === 'week' && (
-        <div className="flex justify-end mb-4">
-          <label className="flex items-center space-x-2 cursor-pointer bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <input 
-              type="checkbox" 
-              checked={showTimetable} 
-              onChange={(e) => setShowTimetable(e.target.checked)} 
-              className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-              style={{ accentColor: 'var(--color-primary)' }}
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Hiển thị T2 - CN
-            </span>
-          </label>
-        </div>
-      )}
-
       {!isAdding && (
         <button
           onClick={() => setIsAdding(true)}
@@ -352,12 +363,20 @@ export function TasksView() {
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><CalendarIcon size={14} /> Ngày</label>
-                <input
-                  type="date"
-                  value={newTaskDate}
-                  onChange={(e) => setNewTaskDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
-                />
+                <div className="flex space-x-2">
+                  <input
+                    type="date"
+                    value={newTaskDate}
+                    onChange={(e) => setNewTaskDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
+                  />
+                  <input
+                    type="time"
+                    value={newTaskTime}
+                    onChange={(e) => setNewTaskTime(e.target.value)}
+                    className="w-full max-w-[120px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
+                  />
+                </div>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><Tag size={14} /> Ưu tiên</label>
@@ -426,7 +445,7 @@ export function TasksView() {
       )}
 
       <div className="flex-[1_1_0%] overflow-y-auto pr-2 pb-8 flex flex-col min-h-0">
-        {showTimetable && viewMode === 'week' ? renderWeekTimetable() : renderListView()}
+        {viewMode === 'week' ? renderWeekTimetable() : renderListView()}
       </div>
     </div>
   );
