@@ -17,6 +17,7 @@ export interface Task {
   completed: boolean;
   priority: Priority;
   date: string; // YYYY-MM-DD
+  time?: string; // HH:mm
   createdAt: number;
   estimatedMinutes?: number;
 }
