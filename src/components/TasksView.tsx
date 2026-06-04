@@ -28,6 +28,7 @@ export function TasksView() {
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [newTaskDate, setNewTaskDate] = useState(formatTZ(new Date(), 'yyyy-MM-dd'));
   const [newTaskTime, setNewTaskTime] = useState('');
+  const [newTaskEndTime, setNewTaskEndTime] = useState('');
   const [newTaskRecurring, setNewTaskRecurring] = useState(false);
   const [newTaskMinutes, setNewTaskMinutes] = useState('25');
   const [isAdding, setIsAdding] = useState(false);
@@ -63,6 +64,7 @@ export function TasksView() {
           priority: newTaskPriority,
           date: formatTZ(addDays(baseDate, i * 7), 'yyyy-MM-dd'),
           time: newTaskTime || undefined,
+          endTime: newTaskEndTime || undefined,
           completed: false,
           estimatedMinutes: parseInt(newTaskMinutes) || 25,
         });
@@ -74,6 +76,7 @@ export function TasksView() {
         priority: newTaskPriority,
         date: newTaskDate,
         time: newTaskTime || undefined,
+        endTime: newTaskEndTime || undefined,
         completed: false,
         estimatedMinutes: parseInt(newTaskMinutes) || 25,
       });
@@ -82,6 +85,7 @@ export function TasksView() {
     setNewTaskTitle('');
     setNewTaskRecurring(false);
     setNewTaskTime('');
+    setNewTaskEndTime('');
     setNewTaskMinutes('25');
     setIsAdding(false);
   };
@@ -191,7 +195,7 @@ export function TasksView() {
                                 "font-medium line-clamp-2 w-full break-all leading-tight flex-1",
                                 task.completed ? "line-through text-gray-500" : ""
                               )}>
-                                {task.time && <span className="text-primary font-bold mr-1.5 text-xs bg-primary/10 px-1 py-0.5 rounded">{task.time}</span>}
+                                {task.time && <span className="text-primary font-bold mr-1.5 text-xs bg-primary/10 px-1 py-0.5 rounded">{task.time}{task.endTime ? ` - ${task.endTime}` : ''}</span>}
                                 {task.title}
                               </span>
                             </div>
@@ -273,7 +277,7 @@ export function TasksView() {
                 "font-medium text-lg truncate transition-all",
                 task.completed ? "line-through text-gray-500" : ""
               )}>
-                {task.time && <span className="text-primary font-bold mr-2 text-sm bg-primary/10 px-1.5 py-0.5 rounded">{task.time}</span>}
+                {task.time && <span className="text-primary font-bold mr-2 text-sm bg-primary/10 px-1.5 py-0.5 rounded">{task.time}{task.endTime ? ` - ${task.endTime}` : ''}</span>}
                 {task.title}
               </span>
             </div>
@@ -370,12 +374,21 @@ export function TasksView() {
                     onChange={(e) => setNewTaskDate(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
                   />
-                  <input
-                    type="time"
-                    value={newTaskTime}
-                    onChange={(e) => setNewTaskTime(e.target.value)}
-                    className="w-full max-w-[120px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
-                  />
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="time"
+                      value={newTaskTime}
+                      onChange={(e) => setNewTaskTime(e.target.value)}
+                      className="w-full max-w-[90px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 text-xs focus:border-primary outline-none"
+                    />
+                    <span className="text-gray-400 font-bold">-</span>
+                    <input
+                      type="time"
+                      value={newTaskEndTime}
+                      onChange={(e) => setNewTaskEndTime(e.target.value)}
+                      className="w-full max-w-[90px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 text-xs focus:border-primary outline-none"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex-1 min-w-[200px]">
@@ -395,18 +408,6 @@ export function TasksView() {
                     </button>
                   ))}
                 </div>
-              </div>
-              
-              <div className="flex-[0.5] min-w-[100px]">
-                <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><Clock size={14} /> Phút (Pomodoro)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="120"
-                  value={newTaskMinutes}
-                  onChange={(e) => setNewTaskMinutes(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-primary outline-none"
-                />
               </div>
             </div>
 
